@@ -1,0 +1,108 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Alarm Policies for ScadaDemo1
+# The AlarmPolicy controller polls Tag.Status.Value every 1s and fires a
+# K8s Event + sets status.active when all conditions are satisfied.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# E-stop pressed
+apiVersion: scada.io/v1alpha1
+kind: AlarmPolicy
+metadata:
+  name: estop-pressed
+  namespace: scada-demo1
+spec:
+  severity: critical
+  message: "E-Stop activated — machine halted, investigate before reset"
+  conditions:
+  - tagRef:
+      name: estop-active
+    operator: eq
+    threshold: "true"
+---
+# Guard door opened while conveyor is running
+apiVersion: scada.io/v1alpha1
+kind: AlarmPolicy
+metadata:
+  name: guard-door-interlocked
+  namespace: scada-demo1
+spec:
+  severity: critical
+  message: "Guard door opened while conveyor running — check for personnel in zone"
+  conditions:
+  - tagRef:
+      name: guard-door-open
+    operator: eq
+    threshold: "true"
+  - tagRef:
+      name: conveyor-running
+    operator: eq
+    threshold: "true"
+---
+# Safety system not OK (loss of safety function)
+apiVersion: scada.io/v1alpha1
+kind: AlarmPolicy
+metadata:
+  name: safety-system-fault
+  namespace: scada-demo1
+spec:
+  severity: critical
+  message: "Safety system fault — SafetyOK de-asserted, investigate SIL2 chain"
+  conditions:
+  - tagRef:
+      name: safety-ok
+    operator: eq
+    threshold: "false"
+---
+# Drive fault
+apiVersion: scada.io/v1alpha1
+kind: AlarmPolicy
+metadata:
+  name: conveyor-drive-fault
+  namespace: scada-demo1
+spec:
+  severity: major
+  message: "Conveyor drive fault — check drive keypad and fault code"
+  conditions:
+  - tagRef:
+      name: conveyor-fault
+    operator: eq
+    threshold: "true"
+---
+# Conveyor stopped unexpectedly (running cmd TRUE but feedback FALSE)
+apiVersion: scada.io/v1alpha1
+kind: AlarmPolicy
+metadata:
+  name: conveyor-unexpected-stop
+  namespace: scada-demo1
+spec:
+  severity: major
+  message: "Conveyor run command active but drive not running — check drive status"
+  conditions:
+  - tagRef:
+      name: conveyor-cmd
+    operator: eq
+    threshold: "true"
+  - tagRef:
+      name: conveyor-running
+    operator: eq
+    threshold: "false"
+---
+# Underspeed — belt running but slower than SLS threshold
+apiVersion: scada.io/v1alpha1
+kind: AlarmPolicy
+metadata:
+  name: conveyor-underspeed
+  namespace: scada-demo1
+spec:
+  severity: warning
+  message: "Conveyor underspeed — actual speed below 10 m/min while running"
+  deadband: "1"
+  conditions:
+  - tagRef:
+      name: conveyor-running
+    operator: eq
+    threshold: "true"
+  - tagRef:
+      name: conveyor-speed
+    operator: lt
+    threshold: "10.0"

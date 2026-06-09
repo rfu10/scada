@@ -1,0 +1,206 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Standard Partition — MainProgram (controller-scoped convenience copies)
+# These tags must exist in the Studio 5000 project before the operator can
+# read them.  Quality will show BAD until the tags are created and downloaded.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Conveyor drive speed (actual feedback from the drive)
+apiVersion: scada.io/v1alpha1
+kind: Tag
+metadata:
+  name: conveyor-speed
+  namespace: scada-demo1
+spec:
+  deviceRef:
+    name: guardlogix-1
+  address: "ConveyorSpeed_Feedback"
+  dataType: REAL
+  engineeringUnit: "m/min"
+  description: "Conveyor belt speed — drive feedback"
+  historianEnabled: true
+---
+# Conveyor run status (bit output from drive)
+apiVersion: scada.io/v1alpha1
+kind: Tag
+metadata:
+  name: conveyor-running
+  namespace: scada-demo1
+spec:
+  deviceRef:
+    name: guardlogix-1
+  address: "ConveyorRunning"
+  dataType: BOOL
+  description: "TRUE when the conveyor drive is running"
+  scanRate: "250ms"
+---
+# Conveyor drive fault
+apiVersion: scada.io/v1alpha1
+kind: Tag
+metadata:
+  name: conveyor-fault
+  namespace: scada-demo1
+spec:
+  deviceRef:
+    name: guardlogix-1
+  address: "ConveyorFault"
+  dataType: BOOL
+  description: "Drive fault bit — latched until FaultReset"
+  scanRate: "250ms"
+---
+# Machine operating mode (0=Stopped 1=Running 2=Fault 3=Setup)
+apiVersion: scada.io/v1alpha1
+kind: Tag
+metadata:
+  name: machine-mode
+  namespace: scada-demo1
+spec:
+  deviceRef:
+    name: guardlogix-1
+  address: "MachineMode"
+  dataType: INT
+  description: "0=Stopped 1=Running 2=Fault 3=Setup"
+---
+# Product counter (cumulative, reset by operator)
+apiVersion: scada.io/v1alpha1
+kind: Tag
+metadata:
+  name: product-count
+  namespace: scada-demo1
+spec:
+  deviceRef:
+    name: guardlogix-1
+  address: "ProductCount"
+  dataType: DINT
+  description: "Cumulative good-product count since last reset"
+  historianEnabled: true
+---
+# Reject counter
+apiVersion: scada.io/v1alpha1
+kind: Tag
+metadata:
+  name: rejected-count
+  namespace: scada-demo1
+spec:
+  deviceRef:
+    name: guardlogix-1
+  address: "RejectedCount"
+  dataType: DINT
+  description: "Cumulative reject count since last reset"
+  historianEnabled: true
+---
+# Throughput rate (calculated in PLC ladder, in products/min)
+apiVersion: scada.io/v1alpha1
+kind: Tag
+metadata:
+  name: product-rate
+  namespace: scada-demo1
+spec:
+  deviceRef:
+    name: guardlogix-1
+  address: "ProductRate"
+  dataType: REAL
+  engineeringUnit: "ppm"
+  description: "Product throughput rate — products per minute"
+  historianEnabled: true
+  scanRate: "1s"
+
+---
+# ──────────────────────────────────────────────────────────────────────────────
+# Program-Scoped — Program:MainProgram
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Run command written by SCADA setpoint (mode: continuous)
+apiVersion: scada.io/v1alpha1
+kind: Tag
+metadata:
+  name: conveyor-cmd
+  namespace: scada-demo1
+spec:
+  deviceRef:
+    name: guardlogix-1
+  address: "Program:MainProgram.ConveyorCmd"
+  dataType: BOOL
+  description: "SCADA run command — held TRUE in continuous setpoint mode"
+  scanRate: "250ms"
+---
+# Speed reference written by SCADA setpoint
+apiVersion: scada.io/v1alpha1
+kind: Tag
+metadata:
+  name: conveyor-speed-ref
+  namespace: scada-demo1
+spec:
+  deviceRef:
+    name: guardlogix-1
+  address: "Program:MainProgram.ConveyorSpeed_Setpoint"
+  dataType: REAL
+  engineeringUnit: "m/min"
+  description: "Speed reference — driven by SCADA setpoint"
+  historianEnabled: true
+
+---
+# ──────────────────────────────────────────────────────────────────────────────
+# Safety Partition — Program:SafetyProgram
+# Read-only monitoring tags surfaced from the safety task.
+# pycomm3 reads these as normal CIP tags; the controller enforces write
+# protection on safety partition tags.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# E-Stop state (TRUE = E-stop circuit open / pressed)
+apiVersion: scada.io/v1alpha1
+kind: Tag
+metadata:
+  name: estop-active
+  namespace: scada-demo1
+spec:
+  deviceRef:
+    name: guardlogix-1
+  address: "Program:SafetyProgram.EStop_Active"
+  dataType: BOOL
+  description: "E-stop channel active — safety task output"
+  scanRate: "250ms"
+  historianEnabled: true
+---
+# Guard door open sensor (TRUE = door open)
+apiVersion: scada.io/v1alpha1
+kind: Tag
+metadata:
+  name: guard-door-open
+  namespace: scada-demo1
+spec:
+  deviceRef:
+    name: guardlogix-1
+  address: "Program:SafetyProgram.GuardDoor_Open"
+  dataType: BOOL
+  description: "Interlocked guard door — open while machine could be running"
+  scanRate: "250ms"
+  historianEnabled: true
+---
+# Overall safety system OK (TRUE = all safety functions satisfied)
+apiVersion: scada.io/v1alpha1
+kind: Tag
+metadata:
+  name: safety-ok
+  namespace: scada-demo1
+spec:
+  deviceRef:
+    name: guardlogix-1
+  address: "Program:SafetyProgram.SafetyOK"
+  dataType: BOOL
+  description: "Aggregate safety health — all SIL2 checks passing"
+  scanRate: "250ms"
+  historianEnabled: true
+---
+# Safely Limited Speed function active (TRUE = SLS engaged)
+apiVersion: scada.io/v1alpha1
+kind: Tag
+metadata:
+  name: sls-active
+  namespace: scada-demo1
+spec:
+  deviceRef:
+    name: guardlogix-1
+  address: "Program:SafetyProgram.SLS_Active"
+  dataType: BOOL
+  description: "Safely Limited Speed function engaged"
+  scanRate: "250ms"

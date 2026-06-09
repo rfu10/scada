@@ -1,0 +1,28 @@
+# Rockwell Automation / Allen-Bradley GuardLogix 5580 Safety Controller
+# Product:  Emulate 5580 Safety Controller
+# Firmware: v38.11
+# Name:     ScadaDemo1
+# Tasks:    MainTask (standard), SafetyTask (safety)
+# Programs: MainProgram, SafetyProgram
+apiVersion: scada.io/v1alpha1
+kind: PLCDevice
+metadata:
+  name: guardlogix-1
+  namespace: scada-demo1
+  annotations:
+    scada.io/firmware: "v38.11"
+    scada.io/product: "Emulate 5580 Safety Controller"
+    scada.io/serial: "601fbeba"
+spec:
+  protocol: ethernet-ip
+  endpoint: "172.27.100.128:44818"
+  driverRef:
+    serviceName: scada-driver-ethernet-ip
+    namespace: scada-system
+    port: 8080
+  params:
+    slot: "0"
+    # GuardLogix 5580 — standard and safety partitions accessible via CIP.
+    # Safety partition tags require the controller to be in REMOTE RUN or REM PROG.
+    # Write access to safety tags requires SafetyTaskRequestedMode = Debug.
+  scanInterval: "500ms"

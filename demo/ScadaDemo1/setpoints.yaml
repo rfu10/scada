@@ -1,0 +1,40 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Setpoints for ScadaDemo1
+#
+# WARNING: These will write to the live GuardLogix controller once the
+# PLCDevice shows Connected=true.  Review each value against the Studio 5000
+# project before applying to a machine that is under power.
+#
+# Safe to apply to Logix Emulate (emulated controller) at any time.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Hold the conveyor speed reference at 25 m/min.
+# mode: continuous — re-written every scan to prevent local override drift.
+apiVersion: scada.io/v1alpha1
+kind: Setpoint
+metadata:
+  name: conveyor-speed-ref-sp
+  namespace: scada-demo1
+  annotations:
+    scada.io/operator: "SCADA default recipe"
+spec:
+  tagRef:
+    name: conveyor-speed-ref
+  value: "25.0"
+  mode: continuous
+---
+# Send the run command once (mode: once).
+# The PLC ladder logic gates this through the safety interlock chain,
+# so the conveyor will only start if SafetyOK is TRUE.
+apiVersion: scada.io/v1alpha1
+kind: Setpoint
+metadata:
+  name: conveyor-run-cmd
+  namespace: scada-demo1
+  annotations:
+    scada.io/operator: "SCADA auto-start"
+spec:
+  tagRef:
+    name: conveyor-cmd
+  value: "true"
+  mode: once
