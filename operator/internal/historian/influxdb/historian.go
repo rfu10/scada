@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
@@ -51,17 +52,52 @@ func (h *Historian) Start(ctx context.Context) error {
 
 // Record writes a single reading to InfluxDB. Only GOOD-quality samples are
 // stored; BAD/UNCERTAIN values are silently dropped to keep the historian clean.
+// All values are coerced to float64 so the "value" field has a consistent type
+// across measurements regardless of PLC data type (BOOL, DINT, REAL, etc.).
 func (h *Historian) Record(_ context.Context, measurement, tag string, value interface{}, quality string, ts time.Time) error {
 	if quality != "GOOD" || h.writeAPI == nil {
+		return nil
+	}
+
+	f, err := toFloat64(value)
+	if err != nil {
+		log.Error(err, "unsupported value type, skipping", "tag", tag, "type", fmt.Sprintf("%T", value))
 		return nil
 	}
 
 	p := influxdb2.NewPoint(
 		measurement,
 		map[string]string{"tag_name": tag},
-		map[string]interface{}{"value": value},
+		map[string]interface{}{"value": f},
 		ts,
 	)
 	h.writeAPI.WritePoint(p)
 	return nil
+}
+
+// toFloat64 coerces the PLC value types the driver produces into float64.
+func toFloat64(v interface{}) (float64, error) {
+	switch val := v.(type) {
+	case float64:
+		return val, nil
+	case float32:
+		return float64(val), nil
+	case int:
+		return float64(val), nil
+	case int32:
+		return float64(val), nil
+	case int64:
+		return float64(val), nil
+	case uint32:
+		return float64(val), nil
+	case uint64:
+		return float64(val), nil
+	case bool:
+		if val {
+			return 1, nil
+		}
+		return 0, nil
+	default:
+		return 0, fmt.Errorf("unsupported type %T", v)
+	}
 }
