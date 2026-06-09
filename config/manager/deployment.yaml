@@ -24,7 +24,7 @@ spec:
         imagePullPolicy: IfNotPresent
         command: [/manager]
         args:
-        - --leader-elect=true
+        - --leader-elect=false
         - --metrics-bind-address=:8081
         - --health-probe-bind-address=:8082
         ports:

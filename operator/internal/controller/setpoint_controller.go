@@ -63,6 +63,7 @@ func (r *SetpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return r.failSP(ctx, &sp, "WriteError", err.Error())
 	}
 
+	patch := client.MergeFrom(sp.DeepCopy())
 	now := metav1.Now()
 	sp.Status.Applied = true
 	sp.Status.LastApplied = &now
@@ -74,7 +75,7 @@ func (r *SetpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		Message: fmt.Sprintf("wrote %s to %s", sp.Spec.Value, tag.Spec.Address),
 	})
 
-	if err := r.Status().Update(ctx, &sp); err != nil {
+	if err := r.Status().Patch(ctx, &sp, patch); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -85,13 +86,14 @@ func (r *SetpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 }
 
 func (r *SetpointReconciler) failSP(ctx context.Context, sp *scadav1alpha1.Setpoint, reason, msg string) (ctrl.Result, error) {
+	patch := client.MergeFrom(sp.DeepCopy())
 	meta.SetStatusCondition(&sp.Status.Conditions, metav1.Condition{
 		Type:    "Applied",
 		Status:  metav1.ConditionFalse,
 		Reason:  reason,
 		Message: msg,
 	})
-	_ = r.Status().Update(ctx, sp)
+	_ = r.Status().Patch(ctx, sp, patch)
 	return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
 }
 
