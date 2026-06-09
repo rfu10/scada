@@ -57,7 +57,7 @@ spec:
   deviceRef:
     name: guardlogix-1
   address: "MachineMode"
-  dataType: INT
+  dataType: DINT
   description: "0=Stopped 1=Running 2=Fault 3=Setup"
 ---
 # Product counter (cumulative, reset by operator)
