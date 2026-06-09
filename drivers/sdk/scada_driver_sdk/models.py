@@ -4,7 +4,6 @@ These match the JSON field names expected by the Go operator's internal/driver/c
 """
 from __future__ import annotations
 
-from enum import str as StrEnum
 from typing import Union
 from pydantic import BaseModel, Field
 
