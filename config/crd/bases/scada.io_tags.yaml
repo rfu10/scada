@@ -30,6 +30,9 @@ spec:
     - name: Address
       type: string
       jsonPath: .spec.address
+    - name: Type
+      type: string
+      jsonPath: .spec.dataType
     - name: Value
       type: string
       jsonPath: .status.value
