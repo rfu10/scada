@@ -35,6 +35,7 @@ class EtherNetIPDriver(BaseDriver):
     def __init__(self) -> None:
         self._plc: LogixDriver | None = None
         self._endpoint: str = ""
+        self._connect_kwargs: dict[str, Any] = {}
 
     # ── Connection ────────────────────────────────────────────────────────────
 
@@ -48,13 +49,12 @@ class EtherNetIPDriver(BaseDriver):
         try:
             await self.disconnect()
             self._endpoint = endpoint
-
-            kwargs: dict[str, Any] = {
+            self._connect_kwargs = {
                 "slot": int(params.get("slot", "0")),
                 "micro800": params.get("micro800", "").lower() == "true",
             }
 
-            self._plc = LogixDriver(endpoint, **kwargs)
+            self._plc = LogixDriver(endpoint, **self._connect_kwargs)
             self._plc.open()
 
             info = self._plc.info
@@ -80,6 +80,17 @@ class EtherNetIPDriver(BaseDriver):
                 pass
             self._plc = None
 
+    def _refresh_tag_cache(self) -> None:
+        """Reopen the LogixDriver to pick up tags added to the PLC since connect."""
+        if self._plc is not None:
+            try:
+                self._plc.close()
+            except Exception:
+                pass
+        self._plc = LogixDriver(self._endpoint, **self._connect_kwargs)
+        self._plc.open()
+        log.info("tag cache refreshed from %s", self._endpoint)
+
     # ── Read ─────────────────────────────────────────────────────────────────
 
     async def read(self, tags: list[TagAddress]) -> list[TagValue]:
@@ -91,11 +102,24 @@ class EtherNetIPDriver(BaseDriver):
             # pycomm3 returns a single Tag namedtuple for one address,
             # or a list for multiple.
             results = self._plc.read(*tag_names)
-            if not isinstance(results, list):
-                results = [results]
-        except (RequestError, ResponseError) as exc:
+        except RequestError as exc:
+            if "Tag doesn't exist" in str(exc):
+                log.info("tag cache stale (%s); refreshing and retrying", exc)
+                try:
+                    self._refresh_tag_cache()
+                    results = self._plc.read(*tag_names)
+                except Exception as retry_exc:
+                    log.warning("read failed after tag cache refresh: %s", retry_exc)
+                    return [TagValue(address=t.address, quality="BAD") for t in tags]
+            else:
+                log.warning("read error: %s", exc)
+                return [TagValue(address=t.address, quality="BAD") for t in tags]
+        except ResponseError as exc:
             log.warning("read error: %s", exc)
             return [TagValue(address=t.address, quality="BAD") for t in tags]
+
+        if not isinstance(results, list):
+            results = [results]
 
         output: list[TagValue] = []
         for tag_addr, result in zip(tags, results):
@@ -120,10 +144,21 @@ class EtherNetIPDriver(BaseDriver):
         write_args = [(v.address, v.value) for v in values]
         try:
             results = self._plc.write(*write_args)
-            if not isinstance(results, list):
-                results = [results]
-        except (RequestError, ResponseError) as exc:
+        except RequestError as exc:
+            if "Tag doesn't exist" in str(exc):
+                log.info("tag cache stale (%s); refreshing and retrying write", exc)
+                try:
+                    self._refresh_tag_cache()
+                    results = self._plc.write(*write_args)
+                except Exception as retry_exc:
+                    return WriteResponse(success=False, error=str(retry_exc))
+            else:
+                return WriteResponse(success=False, error=str(exc))
+        except ResponseError as exc:
             return WriteResponse(success=False, error=str(exc))
+
+        if not isinstance(results, list):
+            results = [results]
 
         errors = [r.error for r in results if r and r.error]
         if errors:
