@@ -30,7 +30,7 @@ spec:
         - name: InfluxDB-Historian
           type: influxdb
           access: proxy
-          url: http://influxdb.observability.svc.cluster.local
+          url: http://influxdb-influxdb2.observability.svc.cluster.local
           jsonData:
             version: Flux
             organization: scada

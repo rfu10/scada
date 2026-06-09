@@ -1,0 +1,198 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-scada-dashboards
+  namespace: observability
+data:
+  scada-overview.json: |
+    {
+      "title": "SCADA Overview",
+      "uid": "scada-overview",
+      "schemaVersion": 38,
+      "version": 1,
+      "refresh": "5s",
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Conveyor Running",
+          "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "type": "value", "options": { "0": { "text": "STOPPED", "color": "red" }, "1": { "text": "RUNNING", "color": "green" } } }
+              ],
+              "thresholds": { "mode": "absolute", "steps": [] }
+            }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "influxdb", "uid": "InfluxDB-Historian" },
+              "query": "from(bucket: \"historian\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tags\" and r.tag_name == \"conveyor-running\" and r._field == \"value\")\n  |> last()",
+              "refId": "A"
+            }
+          ],
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Machine Mode",
+          "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "type": "value", "options": {
+                  "0": { "text": "STOPPED", "color": "blue" },
+                  "1": { "text": "RUNNING", "color": "green" },
+                  "2": { "text": "FAULT",   "color": "red" },
+                  "3": { "text": "SETUP",   "color": "orange" }
+                }}
+              ],
+              "thresholds": { "mode": "absolute", "steps": [] }
+            }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "influxdb", "uid": "InfluxDB-Historian" },
+              "query": "from(bucket: \"historian\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tags\" and r.tag_name == \"machine-mode\" and r._field == \"value\")\n  |> last()",
+              "refId": "A"
+            }
+          ],
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "Safety OK",
+          "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "type": "value", "options": {
+                  "false": { "text": "FAULT", "color": "red" },
+                  "true":  { "text": "OK",    "color": "green" }
+                }}
+              ],
+              "thresholds": { "mode": "absolute", "steps": [] }
+            }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "influxdb", "uid": "InfluxDB-Historian" },
+              "query": "from(bucket: \"historian\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tags\" and r.tag_name == \"safety-ok\" and r._field == \"value\")\n  |> last()",
+              "refId": "A"
+            }
+          ],
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+        },
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "E-Stop Active",
+          "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                { "type": "value", "options": {
+                  "false": { "text": "CLEAR", "color": "green" },
+                  "true":  { "text": "TRIPPED", "color": "red" }
+                }}
+              ],
+              "thresholds": { "mode": "absolute", "steps": [] }
+            }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "influxdb", "uid": "InfluxDB-Historian" },
+              "query": "from(bucket: \"historian\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tags\" and r.tag_name == \"estop-active\" and r._field == \"value\")\n  |> last()",
+              "refId": "A"
+            }
+          ],
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" }
+        },
+        {
+          "id": 5,
+          "type": "timeseries",
+          "title": "Conveyor Speed (m/min)",
+          "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "velocityms",
+              "custom": { "lineWidth": 2 }
+            }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "influxdb", "uid": "InfluxDB-Historian" },
+              "query": "from(bucket: \"historian\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tags\" and r.tag_name == \"conveyor-speed\" and r._field == \"value\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "influxdb", "uid": "InfluxDB-Historian" },
+              "query": "from(bucket: \"historian\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tags\" and r.tag_name == \"conveyor-speed-ref\" and r._field == \"value\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "type": "timeseries",
+          "title": "Product Throughput (ppm)",
+          "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+          "fieldConfig": {
+            "defaults": {
+              "custom": { "lineWidth": 2 }
+            }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "influxdb", "uid": "InfluxDB-Historian" },
+              "query": "from(bucket: \"historian\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tags\" and r.tag_name == \"product-rate\" and r._field == \"value\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "type": "stat",
+          "title": "Product Count",
+          "gridPos": { "x": 0, "y": 12, "w": 6, "h": 4 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": { "mode": "fixed", "fixedColor": "blue" }
+            }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "influxdb", "uid": "InfluxDB-Historian" },
+              "query": "from(bucket: \"historian\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tags\" and r.tag_name == \"product-count\" and r._field == \"value\")\n  |> last()",
+              "refId": "A"
+            }
+          ],
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" }
+        },
+        {
+          "id": 8,
+          "type": "stat",
+          "title": "Rejected Count",
+          "gridPos": { "x": 6, "y": 12, "w": 6, "h": 4 },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "color": { "mode": "fixed", "fixedColor": "orange" }
+            }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "influxdb", "uid": "InfluxDB-Historian" },
+              "query": "from(bucket: \"historian\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"tags\" and r.tag_name == \"rejected-count\" and r._field == \"value\")\n  |> last()",
+              "refId": "A"
+            }
+          ],
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" }
+        }
+      ]
+    }

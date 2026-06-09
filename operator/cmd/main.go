@@ -16,6 +16,7 @@ import (
 	scadav1alpha1 "github.com/rfu10/scada/operator/api/v1alpha1"
 	"github.com/rfu10/scada/operator/internal/controller"
 	"github.com/rfu10/scada/operator/internal/driver"
+	influxhistorian "github.com/rfu10/scada/operator/internal/historian/influxdb"
 )
 
 var (
@@ -60,6 +61,29 @@ func main() {
 
 	reg := driver.NewRegistry()
 
+	// Wire InfluxDB historian when INFLUXDB_URL and INFLUXDB_TOKEN are set.
+	// Falls back to NoopHistorian so the operator works without observability.
+	var historian controller.HistorianSink = controller.NoopHistorian{}
+	if influxURL := os.Getenv("INFLUXDB_URL"); influxURL != "" {
+		if influxToken := os.Getenv("INFLUXDB_TOKEN"); influxToken != "" {
+			org := os.Getenv("INFLUXDB_ORG")
+			if org == "" {
+				org = "scada"
+			}
+			bucket := os.Getenv("INFLUXDB_BUCKET")
+			if bucket == "" {
+				bucket = "historian"
+			}
+			h := influxhistorian.New(influxURL, influxToken, org, bucket)
+			if err := mgr.Add(h); err != nil {
+				setupLog.Error(err, "unable to add influxdb historian to manager")
+				os.Exit(1)
+			}
+			historian = h
+			setupLog.Info("influxdb historian enabled", "url", influxURL, "org", org, "bucket", bucket)
+		}
+	}
+
 	if err = (&controller.PLCDeviceReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
@@ -73,8 +97,7 @@ func main() {
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
 		Registry:  reg,
-		Historian: controller.NoopHistorian{},
-		// Replace NoopHistorian with influxdb.New(...) once InfluxDB is live.
+		Historian: historian,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create Tag controller")
 		os.Exit(1)

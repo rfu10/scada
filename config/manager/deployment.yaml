@@ -27,6 +27,19 @@ spec:
         - --leader-elect=false
         - --metrics-bind-address=:8081
         - --health-probe-bind-address=:8082
+        env:
+        - name: INFLUXDB_URL
+          value: http://influxdb-influxdb2.observability.svc.cluster.local
+        - name: INFLUXDB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-historian
+              key: token
+              optional: true
+        - name: INFLUXDB_ORG
+          value: scada
+        - name: INFLUXDB_BUCKET
+          value: historian
         ports:
         - name: metrics
           containerPort: 8081
