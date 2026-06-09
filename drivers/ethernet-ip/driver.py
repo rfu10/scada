@@ -11,7 +11,10 @@ Tag address format:  "Program:MainProgram.TagName"   (program-scoped)
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
+
+_REFRESH_COOLDOWN = 30.0  # minimum seconds between tag-cache refreshes
 
 from pycomm3 import LogixDriver, RequestError, ResponseError
 
@@ -28,6 +31,11 @@ from scada_driver_sdk import (
 
 log = logging.getLogger(__name__)
 
+# pycomm3's logix_driver logs ERROR-level tracebacks for every cache-miss
+# (tag not yet in PLC).  Suppress those — our driver already returns BAD
+# quality for them, and the noise obscures real connection errors.
+logging.getLogger("pycomm3.logix_driver").setLevel(logging.CRITICAL)
+
 
 class EtherNetIPDriver(BaseDriver):
     """EtherNet/IP CIP driver backed by pycomm3.LogixDriver."""
@@ -36,6 +44,7 @@ class EtherNetIPDriver(BaseDriver):
         self._plc: LogixDriver | None = None
         self._endpoint: str = ""
         self._connect_kwargs: dict[str, Any] = {}
+        self._last_refresh: float = 0.0
 
     # ── Connection ────────────────────────────────────────────────────────────
 
@@ -80,8 +89,17 @@ class EtherNetIPDriver(BaseDriver):
                 pass
             self._plc = None
 
-    def _refresh_tag_cache(self) -> None:
-        """Reopen the LogixDriver to pick up tags added to the PLC since connect."""
+    def _refresh_tag_cache(self) -> bool:
+        """Reopen the LogixDriver to re-download the PLC symbol table.
+
+        Returns False (no-op) if called within _REFRESH_COOLDOWN seconds of
+        the last refresh, preventing a reconnect storm when several tags are
+        absent from the PLC simultaneously.  Returns True when a refresh runs.
+        """
+        now = time.monotonic()
+        if now - self._last_refresh < _REFRESH_COOLDOWN:
+            return False
+        self._last_refresh = now
         if self._plc is not None:
             try:
                 self._plc.close()
@@ -90,6 +108,7 @@ class EtherNetIPDriver(BaseDriver):
         self._plc = LogixDriver(self._endpoint, **self._connect_kwargs)
         self._plc.open()
         log.info("tag cache refreshed from %s", self._endpoint)
+        return True
 
     # ── Read ─────────────────────────────────────────────────────────────────
 
@@ -115,15 +134,14 @@ class EtherNetIPDriver(BaseDriver):
         # retry once so newly-created tags become GOOD without a pod restart.
         if any(r is not None and r.error and "Tag doesn't exist" in str(r.error)
                for r in results):
-            log.info("tag cache stale; refreshing and retrying read")
-            try:
-                self._refresh_tag_cache()
-                results = self._plc.read(*tag_names)
-                if not isinstance(results, list):
-                    results = [results]
-            except Exception as retry_exc:
-                log.warning("read failed after tag cache refresh: %s", retry_exc)
-                return [TagValue(address=t.address, quality="BAD") for t in tags]
+            if self._refresh_tag_cache():
+                try:
+                    results = self._plc.read(*tag_names)
+                    if not isinstance(results, list):
+                        results = [results]
+                except Exception as retry_exc:
+                    log.warning("read failed after tag cache refresh: %s", retry_exc)
+                    return [TagValue(address=t.address, quality="BAD") for t in tags]
 
         output: list[TagValue] = []
         for tag_addr, result in zip(tags, results):
@@ -158,14 +176,13 @@ class EtherNetIPDriver(BaseDriver):
         # than raising.  Refresh and retry once on "Tag doesn't exist".
         if any(r is not None and r.error and "Tag doesn't exist" in str(r.error)
                for r in results):
-            log.info("tag cache stale; refreshing and retrying write")
-            try:
-                self._refresh_tag_cache()
-                results = self._plc.write(*write_args)
-                if not isinstance(results, list):
-                    results = [results]
-            except Exception as retry_exc:
-                return WriteResponse(success=False, error=str(retry_exc))
+            if self._refresh_tag_cache():
+                try:
+                    results = self._plc.write(*write_args)
+                    if not isinstance(results, list):
+                        results = [results]
+                except Exception as retry_exc:
+                    return WriteResponse(success=False, error=str(retry_exc))
 
         errors = [r.error for r in results if r and r.error]
         if errors:
