@@ -102,24 +102,28 @@ class EtherNetIPDriver(BaseDriver):
             # pycomm3 returns a single Tag namedtuple for one address,
             # or a list for multiple.
             results = self._plc.read(*tag_names)
-        except RequestError as exc:
-            if "Tag doesn't exist" in str(exc):
-                log.info("tag cache stale (%s); refreshing and retrying", exc)
-                try:
-                    self._refresh_tag_cache()
-                    results = self._plc.read(*tag_names)
-                except Exception as retry_exc:
-                    log.warning("read failed after tag cache refresh: %s", retry_exc)
-                    return [TagValue(address=t.address, quality="BAD") for t in tags]
-            else:
-                log.warning("read error: %s", exc)
-                return [TagValue(address=t.address, quality="BAD") for t in tags]
-        except ResponseError as exc:
+        except (RequestError, ResponseError) as exc:
             log.warning("read error: %s", exc)
             return [TagValue(address=t.address, quality="BAD") for t in tags]
 
         if not isinstance(results, list):
             results = [results]
+
+        # pycomm3 does NOT raise on a cache-miss — it returns result.error =
+        # "Tag doesn't exist - <name>".  Detect that, refresh the tag list
+        # (re-open the driver to re-download the PLC's symbol table), and
+        # retry once so newly-created tags become GOOD without a pod restart.
+        if any(r is not None and r.error and "Tag doesn't exist" in str(r.error)
+               for r in results):
+            log.info("tag cache stale; refreshing and retrying read")
+            try:
+                self._refresh_tag_cache()
+                results = self._plc.read(*tag_names)
+                if not isinstance(results, list):
+                    results = [results]
+            except Exception as retry_exc:
+                log.warning("read failed after tag cache refresh: %s", retry_exc)
+                return [TagValue(address=t.address, quality="BAD") for t in tags]
 
         output: list[TagValue] = []
         for tag_addr, result in zip(tags, results):
@@ -144,21 +148,24 @@ class EtherNetIPDriver(BaseDriver):
         write_args = [(v.address, v.value) for v in values]
         try:
             results = self._plc.write(*write_args)
-        except RequestError as exc:
-            if "Tag doesn't exist" in str(exc):
-                log.info("tag cache stale (%s); refreshing and retrying write", exc)
-                try:
-                    self._refresh_tag_cache()
-                    results = self._plc.write(*write_args)
-                except Exception as retry_exc:
-                    return WriteResponse(success=False, error=str(retry_exc))
-            else:
-                return WriteResponse(success=False, error=str(exc))
-        except ResponseError as exc:
+        except (RequestError, ResponseError) as exc:
             return WriteResponse(success=False, error=str(exc))
 
         if not isinstance(results, list):
             results = [results]
+
+        # Same cache-miss pattern as read: pycomm3 returns result.error rather
+        # than raising.  Refresh and retry once on "Tag doesn't exist".
+        if any(r is not None and r.error and "Tag doesn't exist" in str(r.error)
+               for r in results):
+            log.info("tag cache stale; refreshing and retrying write")
+            try:
+                self._refresh_tag_cache()
+                results = self._plc.write(*write_args)
+                if not isinstance(results, list):
+                    results = [results]
+            except Exception as retry_exc:
+                return WriteResponse(success=False, error=str(retry_exc))
 
         errors = [r.error for r in results if r and r.error]
         if errors:
