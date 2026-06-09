@@ -1,0 +1,21 @@
+---
+# Provisions InfluxDB v2 (historian) and Grafana (HMI) in the observability namespace.
+# Enable this Kustomization once InfluxDB and Grafana secrets are in place:
+#   kubectl create secret generic influxdb-auth ...
+#   kubectl create secret generic grafana-admin ...
+#   kubectl create secret generic influxdb-grafana-token ...
+#
+# Then uncomment the suspend: false line (or remove the suspend field).
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: observability
+  namespace: flux-system
+spec:
+  interval: 10m0s
+  path: ./infra/observability
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  suspend: true   # flip to false after secrets are provisioned

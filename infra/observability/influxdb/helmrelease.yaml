@@ -1,0 +1,43 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: influxdb
+  namespace: observability
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: influxdb2
+      version: "2.1.x"
+      sourceRef:
+        kind: HelmRepository
+        name: influxdata
+        namespace: observability
+  values:
+    adminUser:
+      organization: scada
+      bucket: historian
+      user: admin
+      # Set via Secret: kubectl create secret generic influxdb-auth \
+      #   --from-literal=admin-password=<pass> \
+      #   --from-literal=admin-token=<token> -n observability
+      existingSecret: influxdb-auth
+
+    persistence:
+      enabled: true
+      storageClass: ""   # use cluster default
+      size: 50Gi
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+
+    # Retention: 0s = keep forever.  Adjust for storage constraints.
+    # e.g. "8760h" for 1 year.
+    env:
+    - name: INFLUXD_RETENTION_AUTOCREATE
+      value: "true"

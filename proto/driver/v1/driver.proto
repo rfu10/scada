@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+// driver.v1 defines the interface all SCADA drivers must implement.
+// The Go operator speaks this contract over HTTP/JSON (see internal/driver/client.go).
+// Python drivers implement it via the scada-driver-sdk FastAPI wrapper.
+// Future: swap transport to gRPC without touching controller code.
+package driver.v1;
+
+option go_package = "github.com/rfu10/scada/operator/gen/driver/v1;driverv1";
+
+// DriverService is the single interface every protocol driver exposes.
+service DriverService {
+  // Connect establishes a session with the field device.
+  rpc Connect(ConnectRequest) returns (ConnectResponse);
+
+  // Disconnect cleanly closes the session.
+  rpc Disconnect(DisconnectRequest) returns (DisconnectResponse);
+
+  // Read returns current values for one or more tag addresses.
+  rpc Read(ReadRequest) returns (ReadResponse);
+
+  // Write drives one or more tag values onto the device.
+  rpc Write(WriteRequest) returns (WriteResponse);
+
+  // Subscribe opens a server-side stream of tag updates at the requested interval.
+  // Implemented as SSE (text/event-stream) in the HTTP transport.
+  rpc Subscribe(SubscribeRequest) returns (stream TagUpdate);
+
+  // Health returns the current connection state without side effects.
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+// ─── Request / Response messages ─────────────────────────────────────────────
+
+message ConnectRequest {
+  string endpoint = 1;             // "192.168.1.100:44818"
+  map<string, string> params = 2;  // protocol-specific (slot, path, timeout_ms, …)
+}
+
+message ConnectResponse {
+  bool   success     = 1;
+  string error       = 2;
+  string device_info = 3;  // vendor / product name returned by the device
+}
+
+message DisconnectRequest  {}
+message DisconnectResponse {}
+
+message TagAddress {
+  string address   = 1;  // EIP: "Program:Main.Motor1.Speed"  OPC-UA: "ns=2;s=Motor1.Speed"
+  string data_type = 2;  // BOOL SINT INT DINT LINT REAL LREAL STRING WORD DWORD LWORD
+}
+
+message TagValue {
+  string address      = 1;
+  oneof value {
+    double float_val  = 2;
+    int64  int_val    = 3;
+    bool   bool_val   = 4;
+    string string_val = 5;
+  }
+  int64  timestamp_ns = 6;  // Unix nanoseconds; 0 means driver did not timestamp
+  string quality      = 7;  // GOOD | BAD | UNCERTAIN
+}
+
+message ReadRequest {
+  repeated TagAddress tags = 1;
+}
+
+message ReadResponse {
+  repeated TagValue values = 1;
+  string            error  = 2;
+}
+
+message WriteRequest {
+  repeated TagValue values = 1;
+}
+
+message WriteResponse {
+  bool   success = 1;
+  string error   = 2;
+}
+
+message SubscribeRequest {
+  repeated TagAddress tags              = 1;
+  int32               publish_interval_ms = 2;  // default 1000
+}
+
+message TagUpdate {
+  TagValue value = 1;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  enum Status {
+    UNKNOWN      = 0;
+    CONNECTED    = 1;
+    DISCONNECTED = 2;
+    ERROR        = 3;
+  }
+  Status status  = 1;
+  string message = 2;
+}

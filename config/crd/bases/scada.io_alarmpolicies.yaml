@@ -1,0 +1,110 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: alarmpolicies.scada.io
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.0
+spec:
+  group: scada.io
+  names:
+    kind: AlarmPolicy
+    listKind: AlarmPolicyList
+    plural: alarmpolicies
+    singular: alarmpolicy
+    shortNames:
+    - alarm
+    categories:
+    - scada
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Severity
+      type: string
+      jsonPath: .spec.severity
+    - name: Active
+      type: boolean
+      jsonPath: .status.active
+    - name: Triggers
+      type: integer
+      jsonPath: .status.triggerCount
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          spec:
+            type: object
+            required: [conditions]
+            properties:
+              conditions:
+                type: array
+                minItems: 1
+                items:
+                  type: object
+                  required: [tagRef, operator, threshold]
+                  properties:
+                    tagRef:
+                      type: object
+                      required: [name]
+                      properties:
+                        name:
+                          type: string
+                    operator:
+                      type: string
+                      enum: [gt, gte, lt, lte, eq, ne]
+                    threshold:
+                      type: string
+              severity:
+                type: string
+                enum: [critical, major, minor, warning, info]
+                default: warning
+              message:
+                type: string
+              deadband:
+                type: string
+                default: "0"
+          status:
+            type: object
+            properties:
+              active:
+                type: boolean
+              lastTriggered:
+                type: string
+                format: date-time
+              lastCleared:
+                type: string
+                format: date-time
+              triggerCount:
+                type: integer
+                format: int64
+              conditions:
+                type: array
+                items:
+                  type: object
+                  required: [type, status, lastTransitionTime, reason]
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                    lastTransitionTime:
+                      type: string
+                      format: date-time
+                    reason:
+                      type: string
+                    message:
+                      type: string

@@ -1,0 +1,26 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: scada-operator-role
+rules:
+# Core SCADA resources
+- apiGroups: [scada.io]
+  resources: [plcdevices, tags, setpoints, alarmpolicies]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [scada.io]
+  resources: [plcdevices/status, tags/status, setpoints/status, alarmpolicies/status]
+  verbs: [get, update, patch]
+- apiGroups: [scada.io]
+  resources: [plcdevices/finalizers, tags/finalizers, setpoints/finalizers, alarmpolicies/finalizers]
+  verbs: [update]
+# Events for alarm notifications
+- apiGroups: [""]
+  resources: [events]
+  verbs: [create, patch]
+# Leader election
+- apiGroups: [coordination.k8s.io]
+  resources: [leases]
+  verbs: [get, list, watch, create, update, patch, delete]
+- apiGroups: [""]
+  resources: [configmaps]
+  verbs: [get, list, watch, create, update, patch, delete]

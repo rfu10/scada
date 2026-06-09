@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scada-operator
+  namespace: scada-system
+  labels:
+    app: scada-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scada-operator
+  template:
+    metadata:
+      labels:
+        app: scada-operator
+    spec:
+      serviceAccountName: scada-operator
+      securityContext:
+        runAsNonRoot: true
+      containers:
+      - name: manager
+        image: localhost:32000/scada/operator:latest
+        imagePullPolicy: IfNotPresent
+        command: [/manager]
+        args:
+        - --leader-elect=true
+        - --metrics-bind-address=:8081
+        - --health-probe-bind-address=:8082
+        ports:
+        - name: metrics
+          containerPort: 8081
+        - name: healthz
+          containerPort: 8082
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8082
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8082
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ALL]

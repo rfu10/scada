@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scada-driver-ethernet-ip
+  namespace: scada-system
+  labels:
+    app: scada-driver-ethernet-ip
+    scada.io/driver: ethernet-ip
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scada-driver-ethernet-ip
+  template:
+    metadata:
+      labels:
+        app: scada-driver-ethernet-ip
+        scada.io/driver: ethernet-ip
+    spec:
+      # If PLCs are on a network segment unreachable from pod CIDR,
+      # uncomment hostNetwork and set a static hostPort instead of the Service.
+      # hostNetwork: true
+      containers:
+      - name: driver
+        image: localhost:32000/scada/driver-ethernet-ip:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scada-driver-ethernet-ip
+  namespace: scada-system
+spec:
+  selector:
+    app: scada-driver-ethernet-ip
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http

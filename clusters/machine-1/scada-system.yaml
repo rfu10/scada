@@ -1,0 +1,24 @@
+---
+# Deploys the SCADA control plane (CRDs, RBAC, operator, EIP driver)
+# into the scada-system namespace.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: scada-system
+  namespace: flux-system
+spec:
+  interval: 5m0s
+  path: ./config/default
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  healthChecks:
+  - apiVersion: apps/v1
+    kind: Deployment
+    name: scada-operator
+    namespace: scada-system
+  - apiVersion: apps/v1
+    kind: Deployment
+    name: scada-driver-ethernet-ip
+    namespace: scada-system

@@ -1,0 +1,2 @@
+scada-driver-sdk @ file:///drivers/sdk
+pycomm3>=1.2.13

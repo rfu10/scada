@@ -1,0 +1,72 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: grafana
+  namespace: observability
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: grafana
+      version: "8.x"
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: observability
+  values:
+    # Admin credentials via secret:
+    # kubectl create secret generic grafana-admin \
+    #   --from-literal=admin-user=admin \
+    #   --from-literal=admin-password=<pass> -n observability
+    admin:
+      existingSecret: grafana-admin
+      userKey: admin-user
+      passwordKey: admin-password
+
+    datasources:
+      datasources.yaml:
+        apiVersion: 1
+        datasources:
+        - name: InfluxDB-Historian
+          type: influxdb
+          access: proxy
+          url: http://influxdb.observability.svc.cluster.local
+          jsonData:
+            version: Flux
+            organization: scada
+            defaultBucket: historian
+            # Token injected at deploy time via Secret ref.
+          secureJsonData:
+            token: $__env{INFLUXDB_TOKEN}
+
+    envFromSecret: influxdb-grafana-token
+
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+        - name: scada
+          folder: SCADA
+          type: file
+          disableDeletion: false
+          options:
+            path: /var/lib/grafana/dashboards/scada
+
+    # Mount your dashboard JSON files via a ConfigMap:
+    # kubectl create configmap grafana-scada-dashboards \
+    #   --from-file=dashboards/ -n observability
+    # Then reference it here with dashboardsConfigMaps.
+    dashboardsConfigMaps:
+      scada: grafana-scada-dashboards
+
+    persistence:
+      enabled: true
+      size: 5Gi
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi

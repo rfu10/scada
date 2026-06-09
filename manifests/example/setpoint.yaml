@@ -1,0 +1,24 @@
+# Write 45.0 RPM to the conveyor speed setpoint on the PLC — once.
+apiVersion: scada.io/v1alpha1
+kind: Setpoint
+metadata:
+  name: conveyor-speed-sp
+  namespace: plant-floor
+spec:
+  tagRef:
+    name: conveyor-speed
+  value: "45.0"
+  mode: once
+---
+# Hold motor run bit HIGH on every reconcile (continuous mode guards against
+# a local override resetting the bit).
+apiVersion: scada.io/v1alpha1
+kind: Setpoint
+metadata:
+  name: motor-run-hold
+  namespace: plant-floor
+spec:
+  tagRef:
+    name: motor-run
+  value: "true"
+  mode: continuous

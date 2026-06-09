@@ -1,0 +1,35 @@
+# Fire a "critical" alarm if conveyor speed drops below 20 RPM while running.
+# Both conditions must be true simultaneously (AND logic).
+apiVersion: scada.io/v1alpha1
+kind: AlarmPolicy
+metadata:
+  name: conveyor-underspeed
+  namespace: plant-floor
+spec:
+  severity: critical
+  message: "Conveyor belt underspeed — check drive and mechanical load"
+  deadband: "2"   # must recover to ≥22 RPM before clearing
+  conditions:
+  - tagRef:
+      name: motor-run
+    operator: eq
+    threshold: "true"
+  - tagRef:
+      name: conveyor-speed
+    operator: lt
+    threshold: "20.0"
+---
+# Warn if motor fault code is non-zero.
+apiVersion: scada.io/v1alpha1
+kind: AlarmPolicy
+metadata:
+  name: motor-fault
+  namespace: plant-floor
+spec:
+  severity: major
+  message: "Motor 1 fault active — check fault code in status"
+  conditions:
+  - tagRef:
+      name: motor-fault-code
+    operator: ne
+    threshold: "0"
