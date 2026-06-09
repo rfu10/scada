@@ -1,0 +1,14 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: influxdb
+  namespace: observability
+spec:
+  entryPoints:
+  - web
+  routes:
+  - kind: Rule
+    match: Host(`influx.scada.local`)
+    services:
+    - name: influxdb-influxdb2
+      port: 80
